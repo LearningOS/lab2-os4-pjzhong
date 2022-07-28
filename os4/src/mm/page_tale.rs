@@ -81,8 +81,8 @@ impl PageTable {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
-        for i in 0..3 {
-            let pte = &mut ppn.get_pte_array()[idxs[i]];
+        for (i, item) in idxs.iter().enumerate() {
+            let pte = &mut ppn.get_pte_array()[*item];
             if i == 2 {
                 result = Some(pte);
                 break;
@@ -105,8 +105,8 @@ impl PageTable {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
-        for i in 0..3 {
-            let pte = &mut ppn.get_pte_array()[idxs[i]];
+        for (i, item) in idxs.iter().enumerate() {
+            let pte = &mut ppn.get_pte_array()[*item];
             if i == 2 {
                 result = Some(pte);
                 break;
@@ -129,6 +129,6 @@ impl PageTable {
     }
 
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
-        self.find_pte(vpn).map(|pte| pte.clone())
+        self.find_pte(vpn).map(|pte| *pte)
     }
 }

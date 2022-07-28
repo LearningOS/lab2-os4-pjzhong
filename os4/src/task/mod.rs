@@ -56,7 +56,7 @@ pub fn get_task_info(ti: *mut TaskInfo) {
     unsafe {
         (*ti).status = current.task_status;
         (*ti).time = get_time_ms() - current.time;
-        (*ti).syscall_times = current.syscall_times.clone();
+        (*ti).syscall_times = current.syscall_times
     }
 }
 
