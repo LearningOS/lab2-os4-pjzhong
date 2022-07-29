@@ -46,18 +46,18 @@ pub fn run_first_task() {
 pub fn reocrd_sys_call(sys_call_id: usize) {
     let mut manager = TASK_MANAGER.inner.exclusive_access();
     let current = manager.current_task;
-    manager.tasks[current].syscall_times[sys_call_id] += 1;
+    //  manager.tasks[current].syscall_times[sys_call_id] += 1;
 }
 
 pub fn get_task_info(ti: *mut TaskInfo) {
-    let mamger = TASK_MANAGER.inner.exclusive_access();
-    let current = &mamger.tasks[mamger.current_task];
+    // let mamger = TASK_MANAGER.inner.exclusive_access();
+    // let current = &mamger.tasks[mamger.current_task];
 
-    unsafe {
-        (*ti).status = current.task_status;
-        (*ti).time = get_time_ms() - current.time;
-        (*ti).syscall_times = current.syscall_times
-    }
+    // unsafe {
+    //     (*ti).status = current.task_status;
+    //     (*ti).time = get_time_ms() - current.time;
+    //     (*ti).syscall_times = current.syscall_times
+    // }
 }
 
 impl TaskManager {
@@ -78,9 +78,9 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            if inner.tasks[next].time == 0 {
-                inner.tasks[next].time = get_time_ms();
-            }
+            // if inner.tasks[next].time == 0 {
+            //     inner.tasks[next].time = get_time_ms();
+            // }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -104,7 +104,7 @@ impl TaskManager {
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
-        task0.time = get_time_ms();
+        // task0.time = get_time_ms();
         task0.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
@@ -125,8 +125,6 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: task::TaskStatus::UnInit,
-            syscall_times: [0; MAX_SYSCALL_NUM],
-            time: 0,
         }; 0];
         for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
             t.task_cx = TaskContext::goto_restore(0);

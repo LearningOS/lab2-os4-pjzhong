@@ -1,15 +1,25 @@
-use alloc::{collections::BTreeMap, vec::Vec};
+use core::arch::asm;
+
+use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
+use lazy_static::lazy_static;
+use riscv::register::satp;
+use spin::Mutex;
 
 use crate::{
-    config::{MEMORY_END, PAGE_SIZE, USER_STACK_SIZE, TRAP_CONTEXT, TRAMPOLINE},
+    config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
     mm::address::StepByOne,
 };
 
 use super::{
-    address::{PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
+    address::{PhysAddr, PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
     frame_allocator::{frame_alloc, FrameTracker},
     page_tale::{PTEFlags, PageTable},
 };
+
+lazy_static! {
+    pub static ref KERNEL_SPACE: Arc<Mutex<MemorySet>> =
+        Arc::new(Mutex::new(MemorySet::new_kernel()));
+}
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MapType {
@@ -198,7 +208,13 @@ impl MemorySet {
         memory_set
     }
 
-    fn map_tramploine(&mut self) {}
+    fn map_tramploine(&mut self) {
+        self.page_table.map(
+            VirtAddr::from(TRAMPOLINE).into(),
+            PhysAddr::from(strampoline as usize).into(),
+            PTEFlags::R | PTEFlags::X,
+        )
+    }
 
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
         let mut memory_set = Self::new_bare();
@@ -263,7 +279,19 @@ impl MemorySet {
             ),
             None,
         );
-        (memory_set, user_stack_top, elf.header.pt2.entry_point() as usize)
+        (
+            memory_set,
+            user_stack_top,
+            elf.header.pt2.entry_point() as usize,
+        )
+    }
+
+    pub fn activate(&self) {
+        let satp = self.page_table.token();
+        unsafe {
+            satp::write(satp);
+            asm!("sfence.vma");
+        }
     }
 }
 
@@ -278,4 +306,37 @@ extern "C" {
     fn ebss();
     fn ekernel();
     fn strampoline();
+}
+
+#[allow(unused)]
+pub fn remap_test() {
+    let mut kernel_space = KERNEL_SPACE.lock();
+    let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
+    let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
+    let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
+    assert_eq!(
+        kernel_space
+            .page_table
+            .translate(mid_text.floor())
+            .unwrap()
+            .writable(),
+        false
+    );
+    assert_eq!(
+        kernel_space
+            .page_table
+            .translate(mid_rodata.floor())
+            .unwrap()
+            .writable(),
+        false
+    );
+    assert_eq!(
+        kernel_space
+            .page_table
+            .translate(mid_data.floor())
+            .unwrap()
+            .executable(),
+        false
+    );
+    println!("remap_test passed!")
 }

@@ -43,9 +43,9 @@ pub fn rust_main() -> ! {
     clear_bss();
     logging::init();
     println!("[kernel] Hello, world!");
-    // mm::init();
+    mm::init();
     println!("[kernel] back to world!");
-    // mm::remap_test();
+    mm::remap_test();
     trap::init();
     //trap::enable_interrupt();
     trap::enable_timer_interrupt();
