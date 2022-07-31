@@ -2,13 +2,18 @@ mod context;
 mod switch;
 mod task;
 
+use alloc::vec::Vec;
 pub use context::TaskContext;
+use riscv::register::{stvec, utvec::TrapMode};
 pub use task::TaskStatus;
 
 use self::{switch::__switch, task::TaskControlBlock};
 use crate::{
-    config::MAX_SYSCALL_NUM, loader::get_num_app, sync::UPSafeCell, syscall::TaskInfo,
+    loader::{get_app_data, get_num_app},
+    sync::UPSafeCell,
+    syscall::TaskInfo,
     timer::get_time_ms,
+    trap::TrapContext,
 };
 use lazy_static::*;
 
@@ -44,8 +49,8 @@ pub fn run_first_task() {
 }
 
 pub fn reocrd_sys_call(sys_call_id: usize) {
-    let mut manager = TASK_MANAGER.inner.exclusive_access();
-    let current = manager.current_task;
+    //let mut manager = TASK_MANAGER.inner.exclusive_access();
+    //let current = manager.current_task;
     //  manager.tasks[current].syscall_times[sys_call_id] += 1;
 }
 
@@ -109,26 +114,42 @@ impl TaskManager {
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut unused = TaskContext::zero_init();
-        unsafe { __switch(&mut unused as *mut TaskContext, next_task_cx_ptr) }
+        unsafe { __switch(&mut unused as *mut _, next_task_cx_ptr) }
         panic!("unreachable in run_frist_task!")
+    }
+
+    fn get_current_token(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].get_user_token()
+    }
+
+    fn get_current_trap_cx(&self) -> &mut TrapContext {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].get_trap_cx()
     }
 }
 
+pub fn current_user_token() -> usize {
+    TASK_MANAGER.get_current_token()
+}
+
+pub fn current_trap_cx() -> &'static mut TrapContext {
+    TASK_MANAGER.get_current_trap_cx()
+}
+
 struct TaskManagerInner {
-    tasks: [TaskControlBlock; 0],
+    tasks: Vec<TaskControlBlock>,
     current_task: usize,
 }
 
 lazy_static! {
     pub static ref TASK_MANAGER: TaskManager = {
         let num_app = get_num_app();
-        let mut tasks = [TaskControlBlock {
-            task_cx: TaskContext::zero_init(),
-            task_status: task::TaskStatus::UnInit,
-        }; 0];
-        for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
-            t.task_cx = TaskContext::goto_restore(0);
-            t.task_status = TaskStatus::Ready;
+        println!("num_app = {}", num_app);
+        let mut tasks: Vec<TaskControlBlock> = Vec::new();
+        for i in 0..num_app {
+            tasks.push(TaskControlBlock::new(get_app_data(i), i))
         }
         TaskManager {
             num_app,

@@ -14,6 +14,7 @@ use super::{
     address::{PhysAddr, PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
     frame_allocator::{frame_alloc, FrameTracker},
     page_tale::{PTEFlags, PageTable},
+    PageTableEntry,
 };
 
 lazy_static! {
@@ -292,6 +293,14 @@ impl MemorySet {
             satp::write(satp);
             asm!("sfence.vma");
         }
+    }
+
+    pub fn token(&self) -> usize {
+        self.page_table.token()
+    }
+
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.page_table.translate(vpn)
     }
 }
 

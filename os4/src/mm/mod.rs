@@ -10,6 +10,8 @@ pub use memory_set::remap_test;
 pub use memory_set::MapPermission;
 pub use memory_set::MemorySet;
 pub use memory_set::KERNEL_SPACE;
+pub use page_tale::translated_byte_buffer;
+pub use page_tale::PageTableEntry;
 
 pub fn init() {
     heap_allocator::init_heap();

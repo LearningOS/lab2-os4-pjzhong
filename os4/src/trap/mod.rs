@@ -14,9 +14,16 @@
 
 mod context;
 
+use core::arch::asm;
+
+use crate::config::{TRAMPOLINE, TRAP_CONTEXT};
 use crate::syscall::syscall;
-use crate::task::{exit_current_and_run_next, reocrd_sys_call, suspend_current_and_run_next};
+use crate::task::{
+    current_trap_cx, current_user_token, exit_current_and_run_next, reocrd_sys_call,
+    suspend_current_and_run_next,
+};
 use crate::timer::set_next_trigger;
+pub use context::TrapContext;
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
@@ -27,12 +34,7 @@ core::arch::global_asm!(include_str!("trap.S"));
 
 /// initialize CSR `stvec` as the entry of `__alltraps`
 pub fn init() {
-    extern "C" {
-        fn __alltraps();
-    }
-    unsafe {
-        stvec::write(__alltraps as usize, TrapMode::Direct);
-    }
+    set_kernel_trap_entry();
 }
 
 /// timer interrupt enabled
@@ -42,18 +44,33 @@ pub fn enable_timer_interrupt() {
     }
 }
 
+fn set_kernel_trap_entry() {
+    unsafe {
+        stvec::write(trap_from_kernel as usize, TrapMode::Direct);
+    }
+}
+
+#[no_mangle]
+pub fn trap_from_kernel() -> ! {
+    panic!("a trap from kernel")
+}
+
 #[no_mangle]
 /// handle an interrupt, exception, or system call from user space
-pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
+pub fn trap_handler() -> ! {
+    set_kernel_trap_entry();
+    let cx = current_trap_cx();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
+                               //reocrd_sys_call(cx.x[17]);                    
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
-            reocrd_sys_call(cx.x[17]);
             cx.sepc += 4;
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }
-        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
+        Trap::Exception(Exception::StoreFault)
+        | Trap::Exception(Exception::StorePageFault)
+        | Trap::Exception(Exception::LoadPageFault) => {
             error!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, cx.sepc);
             exit_current_and_run_next();
         }
@@ -73,7 +90,33 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             );
         }
     }
-    cx
+    trap_return()
 }
 
-pub use context::TrapContext;
+fn set_user_trap_entry() {
+    unsafe {
+        stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
+    }
+}
+
+#[no_mangle]
+pub fn trap_return() -> ! {
+    set_user_trap_entry();
+    let trap_cx_ptr = TRAP_CONTEXT;
+    let user_satp = current_user_token();
+    extern "C" {
+        fn __alltraps();
+        fn __restore();
+    }
+    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
+    unsafe {
+        core::arch::asm!(
+            "fence.i",
+            "jr {restore_va}",
+            restore_va = in(reg) restore_va,
+            in("a0") trap_cx_ptr,
+            in("a1") user_satp,
+            options(noreturn)
+        );
+    }
+}
