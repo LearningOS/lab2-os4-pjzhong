@@ -2,8 +2,6 @@ mod context;
 mod switch;
 mod task;
 
-use core::mem::size_of;
-
 use alloc::vec::Vec;
 pub use context::TaskContext;
 pub use task::TaskStatus;
@@ -11,11 +9,10 @@ pub use task::TaskStatus;
 use self::{switch::__switch, task::TaskControlBlock};
 use crate::{
     loader::{get_app_data, get_num_app},
-    mm::{PageTable, VirtAddr},
     sync::UPSafeCell,
     syscall::TaskInfo,
     timer::get_time_ms,
-    trap::TrapContext,
+    trap::TrapContext, mm::get_mut,
 };
 use lazy_static::*;
 
@@ -142,22 +139,6 @@ pub fn current_user_token() -> usize {
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
-}
-
-/// 获取单个分页之内的对象
-pub fn get_mut<T>(token: usize, ptr: *mut T) -> Option<&'static mut T> {
-    let start = ptr as usize;
-    let page_table = PageTable::from_token(token);
-    let start_va = VirtAddr::from(start);
-    let end_va = VirtAddr::from(start + size_of::<T>());
-    let page_table_entry = page_table.translate(start_va.floor());
-    if let Some(page_table_entry) = page_table_entry {
-        let ppn = page_table_entry.ppn();
-        let buffers = &ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()];
-        unsafe { (buffers.as_ptr() as *mut T).as_mut() }
-    } else {
-        None
-    }
 }
 
 struct TaskManagerInner {

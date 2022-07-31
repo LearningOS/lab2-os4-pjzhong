@@ -1,7 +1,7 @@
 use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::get_mut;
 use crate::task::current_user_token;
 use crate::task::exit_current_and_run_next;
-use crate::task::get_mut;
 use crate::task::get_task_info;
 use crate::task::suspend_current_and_run_next;
 use crate::task::TaskStatus;
