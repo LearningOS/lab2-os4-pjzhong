@@ -80,6 +80,12 @@ impl PhysPageNum {
     }
 }
 
+impl PhysAddr {
+    pub fn get_mut<T>(&self) -> Option<&'static mut T> {
+        unsafe { (self.0 as *mut T).as_mut() }
+    }
+}
+
 impl From<PhysAddr> for usize {
     fn from(v: PhysAddr) -> Self {
         v.0

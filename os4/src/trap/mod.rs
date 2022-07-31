@@ -62,9 +62,10 @@ pub fn trap_handler() -> ! {
     let cx = current_trap_cx();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
-                               //reocrd_sys_call(cx.x[17]);                    
+
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
+            reocrd_sys_call(cx.x[17]);
             cx.sepc += 4;
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }

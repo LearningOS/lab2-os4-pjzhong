@@ -1,4 +1,8 @@
+use core::mem::size_of;
+
 use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::translated_byte_buffer;
+use crate::task::current_user_token;
 use crate::task::exit_current_and_run_next;
 use crate::task::get_task_info;
 use crate::task::suspend_current_and_run_next;
@@ -32,15 +36,19 @@ pub fn sys_exit(exit_code: i32) -> ! {
 }
 
 /// get time with second and microsecond
-pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
-    let us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
-    0
+pub fn sys_get_time(ts: *mut TimeVal, _: usize) -> isize {
+    let buffers =
+        translated_byte_buffer(current_user_token(), ts as *const u8, size_of::<TimeVal>());
+
+    let ts = unsafe { (buffers[0].as_ptr() as *mut TimeVal).as_mut() };
+    if let Some(ts) = ts {
+        let us = get_time_us();
+        ts.sec = us / 1_000_000;
+        ts.usec = us % 1_000_000;
+        0
+    } else {
+        -1
+    }
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases

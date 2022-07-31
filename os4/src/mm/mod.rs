@@ -4,13 +4,13 @@ mod heap_allocator;
 mod memory_set;
 mod page_tale;
 
-pub use address::PhysPageNum;
-pub use address::VirtAddr;
+pub use address::*;
 pub use memory_set::remap_test;
 pub use memory_set::MapPermission;
 pub use memory_set::MemorySet;
 pub use memory_set::KERNEL_SPACE;
 pub use page_tale::translated_byte_buffer;
+pub use page_tale::PageTable;
 pub use page_tale::PageTableEntry;
 
 pub fn init() {

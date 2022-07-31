@@ -1,5 +1,5 @@
 use crate::{
-    config::{kernel_stack_position, TRAP_CONTEXT},
+    config::{kernel_stack_position, MAX_SYSCALL_NUM, TRAP_CONTEXT},
     mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE},
     trap::{trap_handler, TrapContext},
 };
@@ -20,6 +20,8 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
     pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub time: usize,
 }
 
 impl TaskControlBlock {
@@ -43,6 +45,8 @@ impl TaskControlBlock {
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
+            syscall_times: [0; MAX_SYSCALL_NUM],
+            time: 0,
         };
 
         //prepare TrapContext in user space

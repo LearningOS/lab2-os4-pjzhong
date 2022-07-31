@@ -2,6 +2,8 @@ mod context;
 mod switch;
 mod task;
 
+use core::mem::size_of;
+
 use alloc::vec::Vec;
 pub use context::TaskContext;
 use riscv::register::{stvec, utvec::TrapMode};
@@ -10,6 +12,7 @@ pub use task::TaskStatus;
 use self::{switch::__switch, task::TaskControlBlock};
 use crate::{
     loader::{get_app_data, get_num_app},
+    mm::translated_byte_buffer,
     sync::UPSafeCell,
     syscall::TaskInfo,
     timer::get_time_ms,
@@ -49,20 +52,24 @@ pub fn run_first_task() {
 }
 
 pub fn reocrd_sys_call(sys_call_id: usize) {
-    //let mut manager = TASK_MANAGER.inner.exclusive_access();
-    //let current = manager.current_task;
-    //  manager.tasks[current].syscall_times[sys_call_id] += 1;
+    let mut manager = TASK_MANAGER.inner.exclusive_access();
+    let current = manager.current_task;
+    manager.tasks[current].syscall_times[sys_call_id] += 1;
 }
 
 pub fn get_task_info(ti: *mut TaskInfo) {
-    // let mamger = TASK_MANAGER.inner.exclusive_access();
-    // let current = &mamger.tasks[mamger.current_task];
+    let buffers =
+        translated_byte_buffer(current_user_token(), ti as *const u8, size_of::<TaskInfo>());
 
-    // unsafe {
-    //     (*ti).status = current.task_status;
-    //     (*ti).time = get_time_ms() - current.time;
-    //     (*ti).syscall_times = current.syscall_times
-    // }
+    let ti = unsafe { (buffers[0].as_ptr() as *mut TaskInfo).as_mut() };
+
+    if let Some(ti) = ti {
+        let mamger = TASK_MANAGER.inner.exclusive_access();
+        let current = &mamger.tasks[mamger.current_task];
+        ti.status = current.task_status;
+        ti.time = get_time_ms() - current.time;
+        ti.syscall_times = current.syscall_times.clone()
+    }
 }
 
 impl TaskManager {
@@ -83,9 +90,9 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            // if inner.tasks[next].time == 0 {
-            //     inner.tasks[next].time = get_time_ms();
-            // }
+            if inner.tasks[next].time == 0 {
+                inner.tasks[next].time = get_time_ms();
+            }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
