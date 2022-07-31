@@ -1,7 +1,5 @@
 use core::fmt::Debug;
 
-use alloc::collections::btree_map::Range;
-
 use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 
 use super::page_tale::PageTableEntry;

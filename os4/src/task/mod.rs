@@ -9,10 +9,11 @@ pub use task::TaskStatus;
 use self::{switch::__switch, task::TaskControlBlock};
 use crate::{
     loader::{get_app_data, get_num_app},
+    mm::{get_mut, MapPermission, StepByOne, VPNRange, VirtAddr},
     sync::UPSafeCell,
     syscall::TaskInfo,
     timer::get_time_ms,
-    trap::TrapContext, mm::get_mut,
+    trap::TrapContext,
 };
 use lazy_static::*;
 
@@ -164,4 +165,64 @@ lazy_static! {
             },
         }
     };
+}
+
+// YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
+pub fn do_sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    if port & !0x7 != 0 || port & 0x7 == 0 {
+        return -1;
+    }
+
+    let start_va = VirtAddr::from(start);
+    if !start_va.aligned() {
+        return -1;
+    }
+    let end_va = VirtAddr::from(start + len).ceil();
+
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current_task = inner.current_task;
+    let memory_set = &mut inner.tasks[current_task].memory_set;
+
+    for i in VPNRange::new(start_va.into(), end_va) {
+        if memory_set.translate(i).is_some() {
+            return -1;
+        }
+    }
+
+    let mut map_perm = MapPermission::U;
+    if port & 1 == 1 {
+        map_perm |= MapPermission::R;
+    }
+    if port & 2 == 2 {
+        map_perm |= MapPermission::W;
+    }
+    if port & 3 == 3 {
+        map_perm |= MapPermission::X;
+    }
+
+    memory_set.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), map_perm);
+
+    0
+}
+
+pub fn do_sys_munmap(start: usize, len: usize) -> isize {
+    // let mut inner = TASK_MANAGER.inner.exclusive_access();
+    // let current_task = inner.current_task;
+    // let memory_set = &mut inner.tasks[current_task].memory_set;
+
+    // let start_va = VirtAddr::from(start).floor();
+    // let end_va = VirtAddr::from(start + len).ceil();
+
+    // for i in VPNRange::new(start_va, end_va) {
+    //     if memory_set.translate(i).is_none() {
+    //         return -1;
+    //     }
+    // }
+
+    // for i in VPNRange::new(start_va, end_va) {
+    //     memory_set.unmap(i);
+    // }
+
+    // 0
+    0
 }

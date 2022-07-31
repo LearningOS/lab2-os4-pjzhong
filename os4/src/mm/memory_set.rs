@@ -108,6 +108,10 @@ impl MapArea {
             current_vpn.step();
         }
     }
+
+    pub fn is_exits(&self, page_num: VirtPageNum) -> bool {
+        self.data_frames.contains_key(&page_num)
+    }
 }
 
 pub struct MemorySet {
@@ -301,6 +305,14 @@ impl MemorySet {
 
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)
+    }
+
+    pub fn unmap(&mut self, page_num: VirtPageNum) {
+        for map_area in self.areas.iter_mut() {
+            if map_area.is_exits(page_num) {
+                map_area.unmap_one(&mut self.page_table, page_num)
+            }
+        }
     }
 }
 

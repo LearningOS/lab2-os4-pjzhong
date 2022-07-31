@@ -1,6 +1,8 @@
 use crate::config::MAX_SYSCALL_NUM;
 use crate::mm::get_mut;
 use crate::task::current_user_token;
+use crate::task::do_sys_mmap;
+use crate::task::do_sys_munmap;
 use crate::task::exit_current_and_run_next;
 use crate::task::get_task_info;
 use crate::task::suspend_current_and_run_next;
@@ -64,10 +66,10 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    do_sys_mmap(start, len, port)
 }
 
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    do_sys_munmap(start, len)
 }
