@@ -184,8 +184,10 @@ pub fn do_sys_mmap(start: usize, len: usize, port: usize) -> isize {
     let memory_set = &mut inner.tasks[current_task].memory_set;
 
     for i in VPNRange::new(start_va.into(), end_va) {
-        if memory_set.translate(i).is_some() {
-            return -1;
+        if let Some(pte) = memory_set.translate(i) {
+            if pte.is_valid() {
+                return -1;
+            }
         }
     }
 
@@ -200,29 +202,34 @@ pub fn do_sys_mmap(start: usize, len: usize, port: usize) -> isize {
         map_perm |= MapPermission::X;
     }
 
-    memory_set.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), map_perm);
+    memory_set.insert_framed_area(start_va, end_va.into(), map_perm);
 
     0
 }
 
 pub fn do_sys_munmap(start: usize, len: usize) -> isize {
-    // let mut inner = TASK_MANAGER.inner.exclusive_access();
-    // let current_task = inner.current_task;
-    // let memory_set = &mut inner.tasks[current_task].memory_set;
+    let start_va = VirtAddr::from(start);
+    if !start_va.aligned() {
+        return -1;
+    }
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current_task = inner.current_task;
+    let memory_set = &mut inner.tasks[current_task].memory_set;
 
-    // let start_va = VirtAddr::from(start).floor();
-    // let end_va = VirtAddr::from(start + len).ceil();
+    let end_va = VirtAddr::from(start + len).ceil();
 
-    // for i in VPNRange::new(start_va, end_va) {
-    //     if memory_set.translate(i).is_none() {
-    //         return -1;
-    //     }
-    // }
+    for i in VPNRange::new(start_va.into(), end_va) {
+        if let Some(pte) = memory_set.translate(i) {
+            if pte.is_valid() {
+                continue;
+            }
+        }
+        return -1;
+    }
 
-    // for i in VPNRange::new(start_va, end_va) {
-    //     memory_set.unmap(i);
-    // }
+    for i in VPNRange::new(start_va.into(), end_va) {
+        memory_set.unmap(i);
+    }
 
-    // 0
     0
 }

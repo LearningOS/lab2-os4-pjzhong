@@ -314,6 +314,16 @@ impl MemorySet {
             }
         }
     }
+
+    pub fn is_mapped(&self, page_num: VirtPageNum) -> bool {
+        for map_area in &self.areas {
+            if map_area.is_exits(page_num) {
+                return false;
+            }
+        }
+
+        false
+    }
 }
 
 extern "C" {
